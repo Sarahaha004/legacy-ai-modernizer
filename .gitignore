@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+.env
+*.bin
+*.o
+*.exe
+tests/synthetic_cobol/*.bin
+tests/synthetic_cobol/*.exe
