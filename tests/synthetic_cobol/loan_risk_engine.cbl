@@ -1,261 +1,242 @@
 IDENTIFICATION DIVISION.
-       PROGRAM-ID. LOAN-RISK-ENGINE.
-       AUTHOR. APSARA.
-       INSTALLATION. ENTERPRISE-LOAN-SYSTEM.
-       DATE-WRITTEN. 2026-08-30.
+PROGRAM-ID. LOAN-RISK-ENGINE.
+AUTHOR. APSARA.
+INSTALLATION. ENTERPRISE-LOAN-SYSTEM.
+DATE-WRITTEN. 2026-08-30.
 
-       ENVIRONMENT DIVISION.
-       CONFIGURATION SECTION.
-       SOURCE-COMPUTER. IBM-ZOS.
-       OBJECT-COMPUTER. GNUCOBOL-LOCAL.
+ENVIRONMENT DIVISION.
+CONFIGURATION SECTION.
+SOURCE-COMPUTER. IBM-ZOS.
+OBJECT-COMPUTER. GNUCOBOL-LOCAL.
 
-       DATA DIVISION.
-       WORKING-STORAGE SECTION.
+DATA DIVISION.
+WORKING-STORAGE SECTION.
 
-      *================================================================*
-      * INPUT VARIABLES
-      *================================================================*
-       01 WS-CUSTOMER-RECORD.
-          05 WS-CUST-ID                 PIC X(8).
-          05 WS-CREDIT-SCORE            PIC 9(3).
-          05 WS-ANNUAL-INCOME           PIC 9(7)V99.
-          05 WS-EXISTING-MONTHLY-DEBT   PIC 9(5)V99.
-          05 WS-REQUESTED-LOAN-AMT      PIC 9(7)V99.
-          05 WS-LOAN-TERM-MONTHS        PIC 9(3).
-          05 WS-EMPLOYMENT-STATUS       PIC X(1).
-             88 EMP-FULL-TIME           VALUE 'F'.
-             88 EMP-PART-TIME           VALUE 'P'.
-             88 EMP-SELF-EMPLOYED       VALUE 'S'.
-             88 EMP-UNEMPLOYED          VALUE 'U'.
-          05 WS-PRIOR-BANKRUPTCY        PIC X(1).
-             88 HAS-BANKRUPTCY          VALUE 'Y'.
-             88 NO-BANKRUPTCY           VALUE 'N'.
+*> INPUT VARIABLES
+01 WS-CUSTOMER-RECORD.
+   05 WS-CUST-ID                 PIC X(8).
+   05 WS-CREDIT-SCORE            PIC 9(3).
+   05 WS-ANNUAL-INCOME           PIC 9(7)V99.
+   05 WS-EXISTING-MONTHLY-DEBT   PIC 9(5)V99.
+   05 WS-REQUESTED-LOAN-AMT      PIC 9(7)V99.
+   05 WS-LOAN-TERM-MONTHS        PIC 9(3).
+   05 WS-EMPLOYMENT-STATUS       PIC X(1).
+      88 EMP-FULL-TIME           VALUE 'F'.
+      88 EMP-PART-TIME           VALUE 'P'.
+      88 EMP-SELF-EMPLOYED       VALUE 'S'.
+      88 EMP-UNEMPLOYED          VALUE 'U'.
+   05 WS-PRIOR-BANKRUPTCY        PIC X(1).
+      88 HAS-BANKRUPTCY          VALUE 'Y'.
+      88 NO-BANKRUPTCY           VALUE 'N'.
 
-      *================================================================*
-      * INTERNAL WORKING FIELDS & FLAGS
-      *================================================================*
-       01 WS-CALCULATIONS.
-          05 WS-MONTHLY-INCOME          PIC 9(6)V99.
-          05 WS-BASE-MONTHLY-PAYMENT    PIC 9(6)V99.
-          05 WS-TOTAL-MONTHLY-DEBT      PIC 9(6)V99.
-          05 WS-DTI-RATIO               PIC 9(3)V99.
-          05 WS-RISK-SCORE              PIC 9(3) VALUE ZERO.
-          05 WS-BASE-INTEREST-RATE      PIC 9(2)V99 VALUE 05.00.
-          05 WS-FINAL-INTEREST-RATE     PIC 9(2)V99.
-          05 WS-TOTAL-INTEREST-CHARGE   PIC 9(7)V99.
-          05 WS-TOTAL-REPAYMENT-AMT     PIC 9(8)V99.
-          05 WS-FINAL-MONTHLY-EMI       PIC 9(6)V99.
-          05 WS-ORIGINATION-FEE         PIC 9(5)V99.
+*> INTERNAL WORKING FIELDS
+01 WS-CALCULATIONS.
+   05 WS-MONTHLY-INCOME          PIC 9(6)V99.
+   05 WS-BASE-MONTHLY-PAYMENT    PIC 9(6)V99.
+   05 WS-TOTAL-MONTHLY-DEBT      PIC 9(6)V99.
+   05 WS-DTI-RATIO               PIC 9(3)V99.
+   05 WS-RISK-SCORE              PIC 9(3) VALUE ZERO.
+   05 WS-BASE-INTEREST-RATE      PIC 9(2)V99 VALUE 05.00.
+   05 WS-FINAL-INTEREST-RATE     PIC 9(2)V99.
+   05 WS-TOTAL-INTEREST-CHARGE   PIC 9(7)V99.
+   05 WS-TOTAL-REPAYMENT-AMT     PIC 9(8)V99.
+   05 WS-FINAL-MONTHLY-EMI       PIC 9(6)V99.
+   05 WS-ORIGINATION-FEE         PIC 9(5)V99.
 
-       01 WS-CONTROL-FLAGS.
-          05 WS-ELIGIBILITY-FLAG        PIC X(1) VALUE 'N'.
-             88 LOAN-APPROVED           VALUE 'Y'.
-             88 LOAN-REJECTED           VALUE 'N'.
-          05 WS-RISK-GRADE              PIC X(1) VALUE 'D'.
-             88 GRADE-A                 VALUE 'A'.
-             88 GRADE-B                 VALUE 'B'.
-             88 GRADE-C                 VALUE 'C'.
-             88 GRADE-HIGH-RISK         VALUE 'D'.
-          05 WS-REJECTION-REASON        PIC X(40) VALUE SPACES.
+01 WS-CONTROL-FLAGS.
+   05 WS-ELIGIBILITY-FLAG        PIC X(1) VALUE 'N'.
+      88 LOAN-APPROVED           VALUE 'Y'.
+      88 LOAN-REJECTED           VALUE 'N'.
+   05 WS-RISK-GRADE              PIC X(1) VALUE 'D'.
+      88 GRADE-A                 VALUE 'A'.
+      88 GRADE-B                 VALUE 'B'.
+      88 GRADE-C                 VALUE 'C'.
+      88 GRADE-HIGH-RISK         VALUE 'D'.
+   05 WS-REJECTION-REASON        PIC X(40) VALUE SPACES.
 
-       01 WS-LOOP-COUNTERS.
-          05 WS-MONTH-IDX               PIC 9(3) VALUE 1.
-          05 WS-REMAINING-BALANCE       PIC 9(8)V99.
-          05 WS-MONTHLY-PRINCIPAL       PIC 9(6)V99.
-          05 WS-MONTHLY-INTEREST-SLICE  PIC 9(6)V99.
+01 WS-LOOP-COUNTERS.
+   05 WS-MONTH-IDX               PIC 9(3) VALUE 1.
+   05 WS-REMAINING-BALANCE       PIC 9(8)V99.
+   05 WS-MONTHLY-PRINCIPAL       PIC 9(6)V99.
+   05 WS-MONTHLY-INTEREST-SLICE  PIC 9(6)V99.
 
-       PROCEDURE DIVISION.
-      *================================================================*
-      * MAIN CONTROL ROUTINE
-      *================================================================*
-       0000-MAIN-LOGIC.
-           PERFORM 1000-INITIALIZE-DATA.
-           PERFORM 2000-READ-INPUTS.
-           PERFORM 3000-VALIDATE-BASIC-RULES.
-           
-           IF LOAN-APPROVED
-               PERFORM 4000-CALCULATE-RISK-GRADE
-               PERFORM 5000-CALCULATE-INTEREST-RATE
-               PERFORM 6000-CALCULATE-LOAN-SCHEDULE
-           END-IF.
-           
-           PERFORM 7000-DISPLAY-DECISION.
-           STOP RUN.
+PROCEDURE DIVISION.
+*> MAIN CONTROL ROUTINE
+0000-MAIN-LOGIC.
+    PERFORM 1000-INITIALIZE-DATA.
+    PERFORM 2000-READ-INPUTS.
+    PERFORM 3000-VALIDATE-BASIC-RULES.
+    
+    IF LOAN-APPROVED
+        PERFORM 4000-CALCULATE-RISK-GRADE
+        PERFORM 5000-CALCULATE-INTEREST-RATE
+        PERFORM 6000-CALCULATE-LOAN-SCHEDULE
+    END-IF.
+    
+    PERFORM 7000-DISPLAY-DECISION.
+    STOP RUN.
 
-      *================================================================*
-      * INITIALIZATION
-      *================================================================*
-       1000-INITIALIZE-DATA.
-           SET LOAN-APPROVED TO TRUE.
-           MOVE SPACES TO WS-REJECTION-REASON.
-           MOVE ZERO TO WS-RISK-SCORE.
-           MOVE 05.00 TO WS-BASE-INTEREST-RATE.
+*> INITIALIZATION
+1000-INITIALIZE-DATA.
+    SET LOAN-APPROVED TO TRUE.
+    MOVE SPACES TO WS-REJECTION-REASON.
+    MOVE ZERO TO WS-RISK-SCORE.
+    MOVE 05.00 TO WS-BASE-INTEREST-RATE.
 
-      *================================================================*
-      * INPUT PROCESSING (SEQUENTIAL STDIN ASSIGNMENTS)
-      *================================================================*
-       2000-READ-INPUTS.
-           ACCEPT WS-CUST-ID.
-           ACCEPT WS-CREDIT-SCORE.
-           ACCEPT WS-ANNUAL-INCOME.
-           ACCEPT WS-EXISTING-MONTHLY-DEBT.
-           ACCEPT WS-REQUESTED-LOAN-AMT.
-           ACCEPT WS-LOAN-TERM-MONTHS.
-           ACCEPT WS-EMPLOYMENT-STATUS.
-           ACCEPT WS-PRIOR-BANKRUPTCY.
+*> INPUT PROCESSING
+2000-READ-INPUTS.
+    ACCEPT WS-CUST-ID.
+    ACCEPT WS-CREDIT-SCORE.
+    ACCEPT WS-ANNUAL-INCOME.
+    ACCEPT WS-EXISTING-MONTHLY-DEBT.
+    ACCEPT WS-REQUESTED-LOAN-AMT.
+    ACCEPT WS-LOAN-TERM-MONTHS.
+    ACCEPT WS-EMPLOYMENT-STATUS.
+    ACCEPT WS-PRIOR-BANKRUPTCY.
 
-      *================================================================*
-      * ELIGIBILITY AND HARD FILTER VALIDATIONS
-      *================================================================*
-       3000-VALIDATE-BASIC-RULES.
-           IF HAS-BANKRUPTCY
-               SET LOAN-REJECTED TO TRUE
-               MOVE "REJECTED: PRIOR BANKRUPTCY DETECTED"
-                 TO WS-REJECTION-REASON
-               GO TO 3999-VALIDATION-EXIT
-           END-IF.
+*> ELIGIBILITY VALIDATION
+3000-VALIDATE-BASIC-RULES.
+    IF HAS-BANKRUPTCY
+        SET LOAN-REJECTED TO TRUE
+        MOVE "REJECTED: PRIOR BANKRUPTCY DETECTED"
+          TO WS-REJECTION-REASON
+        GO TO 3999-VALIDATION-EXIT
+    END-IF.
 
-           IF EMP-UNEMPLOYED
-               SET LOAN-REJECTED TO TRUE
-               MOVE "REJECTED: UNEMPLOYED APPLICANT"
-                 TO WS-REJECTION-REASON
-               GO TO 3999-VALIDATION-EXIT
-           END-IF.
+    IF EMP-UNEMPLOYED
+        SET LOAN-REJECTED TO TRUE
+        MOVE "REJECTED: UNEMPLOYED APPLICANT"
+          TO WS-REJECTION-REASON
+        GO TO 3999-VALIDATION-EXIT
+    END-IF.
 
-           IF WS-CREDIT-SCORE < 580
-               SET LOAN-REJECTED TO TRUE
-               MOVE "REJECTED: CREDIT SCORE BELOW 580"
-                 TO WS-REJECTION-REASON
-               GO TO 3999-VALIDATION-EXIT
-           END-IF.
+    IF WS-CREDIT-SCORE < 580
+        SET LOAN-REJECTED TO TRUE
+        MOVE "REJECTED: CREDIT SCORE BELOW 580"
+          TO WS-REJECTION-REASON
+        GO TO 3999-VALIDATION-EXIT
+    END-IF.
 
-           IF WS-LOAN-TERM-MONTHS < 12 OR WS-LOAN-TERM-MONTHS > 360
-               SET LOAN-REJECTED TO TRUE
-               MOVE "REJECTED: INVALID TERM (12-360 MOS)"
-                 TO WS-REJECTION-REASON
-               GO TO 3999-VALIDATION-EXIT
-           END-IF.
+    IF WS-LOAN-TERM-MONTHS < 12 OR WS-LOAN-TERM-MONTHS > 360
+        SET LOAN-REJECTED TO TRUE
+        MOVE "REJECTED: INVALID TERM (12-360 MOS)"
+          TO WS-REJECTION-REASON
+        GO TO 3999-VALIDATION-EXIT
+    END-IF.
 
-           COMPUTE WS-MONTHLY-INCOME = WS-ANNUAL-INCOME / 12.
-           COMPUTE WS-BASE-MONTHLY-PAYMENT =
-               WS-REQUESTED-LOAN-AMT / WS-LOAN-TERM-MONTHS.
-           COMPUTE WS-TOTAL-MONTHLY-DEBT =
-               WS-EXISTING-MONTHLY-DEBT + WS-BASE-MONTHLY-PAYMENT.
-           COMPUTE WS-DTI-RATIO =
-               (WS-TOTAL-MONTHLY-DEBT / WS-MONTHLY-INCOME) * 100.
+    COMPUTE WS-MONTHLY-INCOME = WS-ANNUAL-INCOME / 12.
+    COMPUTE WS-BASE-MONTHLY-PAYMENT =
+        WS-REQUESTED-LOAN-AMT / WS-LOAN-TERM-MONTHS.
+    COMPUTE WS-TOTAL-MONTHLY-DEBT =
+        WS-EXISTING-MONTHLY-DEBT + WS-BASE-MONTHLY-PAYMENT.
+    COMPUTE WS-DTI-RATIO =
+        (WS-TOTAL-MONTHLY-DEBT / WS-MONTHLY-INCOME) * 100.
 
-           IF WS-DTI-RATIO > 45.00
-               SET LOAN-REJECTED TO TRUE
-               MOVE "REJECTED: DTI RATIO EXCEEDS 45%"
-                 TO WS-REJECTION-REASON
-               GO TO 3999-VALIDATION-EXIT
-           END-IF.
+    IF WS-DTI-RATIO > 45.00
+        SET LOAN-REJECTED TO TRUE
+        MOVE "REJECTED: DTI RATIO EXCEEDS 45%"
+          TO WS-REJECTION-REASON
+        GO TO 3999-VALIDATION-EXIT
+    END-IF.
 
-       3999-VALIDATION-EXIT.
-           EXIT.
+3999-VALIDATION-EXIT.
+    EXIT.
 
-      *================================================================*
-      * RISK SCORING AND GRADING
-      *================================================================*
-       4000-CALCULATE-RISK-GRADE.
-           IF WS-CREDIT-SCORE >= 780
-               ADD 40 TO WS-RISK-SCORE
-           ELSE
-               IF WS-CREDIT-SCORE >= 680
-                   ADD 25 TO WS-RISK-SCORE
-               ELSE
-                   ADD 10 TO WS-RISK-SCORE
-               END-IF
-           END-IF.
+*> RISK SCORING
+4000-CALCULATE-RISK-GRADE.
+    IF WS-CREDIT-SCORE >= 780
+        ADD 40 TO WS-RISK-SCORE
+    ELSE
+        IF WS-CREDIT-SCORE >= 680
+            ADD 25 TO WS-RISK-SCORE
+        ELSE
+            ADD 10 TO WS-RISK-SCORE
+        END-IF
+    END-IF.
 
-           IF EMP-FULL-TIME
-               ADD 30 TO WS-RISK-SCORE
-           ELSE
-               IF EMP-SELF-EMPLOYED
-                   ADD 20 TO WS-RISK-SCORE
-               ELSE
-                   ADD 10 TO WS-RISK-SCORE
-               END-IF
-           END-IF.
+    IF EMP-FULL-TIME
+        ADD 30 TO WS-RISK-SCORE
+    ELSE
+        IF EMP-SELF-EMPLOYED
+            ADD 20 TO WS-RISK-SCORE
+        ELSE
+            ADD 10 TO WS-RISK-SCORE
+        END-IF
+    END-IF.
 
-           IF WS-DTI-RATIO <= 25.00
-               ADD 30 TO WS-RISK-SCORE
-           ELSE
-               IF WS-DTI-RATIO <= 35.00
-                   ADD 15 TO WS-RISK-SCORE
-               ELSE
-                   ADD 5 TO WS-RISK-SCORE
-               END-IF
-           END-IF.
+    IF WS-DTI-RATIO <= 25.00
+        ADD 30 TO WS-RISK-SCORE
+    ELSE
+        IF WS-DTI-RATIO <= 35.00
+            ADD 15 TO WS-RISK-SCORE
+        ELSE
+            ADD 5 TO WS-RISK-SCORE
+        END-IF
+    END-IF.
 
-           EVALUATE TRUE
-               WHEN WS-RISK-SCORE >= 85
-                   SET GRADE-A TO TRUE
-               WHEN WS-RISK-SCORE >= 65
-                   SET GRADE-B TO TRUE
-               WHEN WS-RISK-SCORE >= 45
-                   SET GRADE-C TO TRUE
-               WHEN OTHER
-                   SET GRADE-HIGH-RISK TO TRUE
-           END-EVALUATE.
+    EVALUATE TRUE
+        WHEN WS-RISK-SCORE >= 85
+            SET GRADE-A TO TRUE
+        WHEN WS-RISK-SCORE >= 65
+            SET GRADE-B TO TRUE
+        WHEN WS-RISK-SCORE >= 45
+            SET GRADE-C TO TRUE
+        WHEN OTHER
+            SET GRADE-HIGH-RISK TO TRUE
+    END-EVALUATE.
 
-      *================================================================*
-      * INTEREST RATE AND SURCHARGE DETERMINATION
-      *================================================================*
-       5000-CALCULATE-INTEREST-RATE.
-           EVALUATE WS-RISK-GRADE
-               WHEN 'A'
-                   MOVE 04.50 TO WS-FINAL-INTEREST-RATE
-                   COMPUTE WS-ORIGINATION-FEE =
-                       WS-REQUESTED-LOAN-AMT * 0.01
-               WHEN 'B'
-                   MOVE 07.25 TO WS-FINAL-INTEREST-RATE
-                   COMPUTE WS-ORIGINATION-FEE =
-                       WS-REQUESTED-LOAN-AMT * 0.02
-               WHEN 'C'
-                   MOVE 10.50 TO WS-FINAL-INTEREST-RATE
-                   COMPUTE WS-ORIGINATION-FEE =
-                       WS-REQUESTED-LOAN-AMT * 0.035
-               WHEN OTHER
-                   MOVE 14.75 TO WS-FINAL-INTEREST-RATE
-                   COMPUTE WS-ORIGINATION-FEE =
-                       WS-REQUESTED-LOAN-AMT * 0.05
-           END-EVALUATE.
+*> INTEREST RATE
+5000-CALCULATE-INTEREST-RATE.
+    EVALUATE WS-RISK-GRADE
+        WHEN 'A'
+            MOVE 04.50 TO WS-FINAL-INTEREST-RATE
+            COMPUTE WS-ORIGINATION-FEE =
+                WS-REQUESTED-LOAN-AMT * 0.01
+        WHEN 'B'
+            MOVE 07.25 TO WS-FINAL-INTEREST-RATE
+            COMPUTE WS-ORIGINATION-FEE =
+                WS-REQUESTED-LOAN-AMT * 0.02
+        WHEN 'C'
+            MOVE 10.50 TO WS-FINAL-INTEREST-RATE
+            COMPUTE WS-ORIGINATION-FEE =
+                WS-REQUESTED-LOAN-AMT * 0.035
+        WHEN OTHER
+            MOVE 14.75 TO WS-FINAL-INTEREST-RATE
+            COMPUTE WS-ORIGINATION-FEE =
+                WS-REQUESTED-LOAN-AMT * 0.05
+    END-EVALUATE.
 
-           IF WS-LOAN-TERM-MONTHS > 60
-               ADD 0.75 TO WS-FINAL-INTEREST-RATE
-           END-IF.
+    IF WS-LOAN-TERM-MONTHS > 60
+        ADD 0.75 TO WS-FINAL-INTEREST-RATE
+    END-IF.
 
-      *================================================================*
-      * AMORTIZATION AND AGGREGATE VALUES
-      *================================================================*
-       6000-CALCULATE-LOAN-SCHEDULE.
-           COMPUTE WS-TOTAL-INTEREST-CHARGE =
-               (WS-REQUESTED-LOAN-AMT * WS-FINAL-INTEREST-RATE *
-               (WS-LOAN-TERM-MONTHS / 12)) / 100.
+*> AMORTIZATION
+6000-CALCULATE-LOAN-SCHEDULE.
+    COMPUTE WS-TOTAL-INTEREST-CHARGE =
+        (WS-REQUESTED-LOAN-AMT * WS-FINAL-INTEREST-RATE *
+        (WS-LOAN-TERM-MONTHS / 12)) / 100.
 
-           COMPUTE WS-TOTAL-REPAYMENT-AMT =
-               WS-REQUESTED-LOAN-AMT + WS-TOTAL-INTEREST-CHARGE +
-               WS-ORIGINATION-FEE.
+    COMPUTE WS-TOTAL-REPAYMENT-AMT =
+        WS-REQUESTED-LOAN-AMT + WS-TOTAL-INTEREST-CHARGE +
+        WS-ORIGINATION-FEE.
 
-           COMPUTE WS-FINAL-MONTHLY-EMI =
-               WS-TOTAL-REPAYMENT-AMT / WS-LOAN-TERM-MONTHS.
+    COMPUTE WS-FINAL-MONTHLY-EMI =
+        WS-TOTAL-REPAYMENT-AMT / WS-LOAN-TERM-MONTHS.
 
-      *================================================================*
-      * EMIT STRUCTURED OUTPUT
-      *================================================================*
-       7000-DISPLAY-DECISION.
-           DISPLAY "STATUS:" WS-ELIGIBILITY-FLAG.
-           IF LOAN-APPROVED
-               DISPLAY "CUSTOMER_ID:" WS-CUST-ID
-               DISPLAY "RISK_GRADE:" WS-RISK-GRADE
-               DISPLAY "RISK_SCORE:" WS-RISK-SCORE
-               DISPLAY "DTI_RATIO:" WS-DTI-RATIO
-               DISPLAY "INTEREST_RATE:" WS-FINAL-INTEREST-RATE
-               DISPLAY "ORIGINATION_FEE:" WS-ORIGINATION-FEE
-               DISPLAY "TOTAL_INTEREST:" WS-TOTAL-INTEREST-CHARGE
-               DISPLAY "TOTAL_REPAYMENT:" WS-TOTAL-REPAYMENT-AMT
-               DISPLAY "MONTHLY_EMI:" WS-FINAL-MONTHLY-EMI
-           ELSE
-               DISPLAY "REASON:" WS-REJECTION-REASON
-           END-IF.
+*> OUTPUT DISPLAY
+7000-DISPLAY-DECISION.
+    DISPLAY "STATUS:" WS-ELIGIBILITY-FLAG.
+    IF LOAN-APPROVED
+        DISPLAY "CUSTOMER_ID:" WS-CUST-ID
+        DISPLAY "RISK_GRADE:" WS-RISK-GRADE
+        DISPLAY "RISK_SCORE:" WS-RISK-SCORE
+        DISPLAY "DTI_RATIO:" WS-DTI-RATIO
+        DISPLAY "INTEREST_RATE:" WS-FINAL-INTEREST-RATE
+        DISPLAY "ORIGINATION_FEE:" WS-ORIGINATION-FEE
+        DISPLAY "TOTAL_INTEREST:" WS-TOTAL-INTEREST-CHARGE
+        DISPLAY "TOTAL_REPAYMENT:" WS-TOTAL-REPAYMENT-AMT
+        DISPLAY "MONTHLY_EMI:" WS-FINAL-MONTHLY-EMI
+    ELSE
+        DISPLAY "REASON:" WS-REJECTION-REASON
+    END-IF.
+    
