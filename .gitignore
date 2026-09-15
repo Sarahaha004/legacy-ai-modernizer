@@ -1,9 +1,29 @@
-venv/
-__pycache__/
-*.pyc
+# Environment & Secrets
 .env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# Operating System & IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# COBOL artifacts & executables
+*.exe
 *.bin
 *.o
-*.exe
-tests/synthetic_cobol/*.bin
+*.so
 tests/synthetic_cobol/*.exe
+tests/synthetic_cobol/*.bin
+
+# Generated outputs
+output/
